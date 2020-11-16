@@ -72,13 +72,16 @@ class SFH_APP(SFH, tk.Canvas):
         return tuple(ovals)
 
     def loop_func(self):
+        time_next = time.time()
         while True:
             self.step(0.1)
             for point, oval in zip(self.points, self.ovals):
                 self.coords(oval, *self.coords_oval(point))
             self.itemconfig(self.timer, text = f't = {self.t:.02f}')
             self.update()
-            time.sleep(0.05)
+            time_next += 0.05
+            time_sleep = time_next - time.time()
+            time.sleep(max(0.0, time_sleep))
 
 
 def main():
