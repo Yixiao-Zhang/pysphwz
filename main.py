@@ -2,13 +2,14 @@
 
 import tkinter as tk
 import time
+import itertools
 import logging
 
 import numpy as np
 
 domain = np.array([16.0, 16.0])
 mid_domain = domain/2
-pradius = 2.0
+pradius = 1.0
 
 class Point:
     def __init__(self, position:np.ndarray, velocity:np.ndarray):
@@ -75,7 +76,7 @@ class SFH_APP(SFH, tk.Canvas):
             ovals.append(oval)
         return tuple(ovals)
 
-    real_time_sep = 0.2
+    real_time_sep = 0.05
     def loop_func(self):
         time_next = time.time()
         while True:
@@ -107,7 +108,7 @@ class LiquidApp(SFH_APP):
                 displacement = self.displacement(point)
                 distance = np.linalg.norm(displacement)
                 if distance < pradius:
-                    res += -1.0*displacement/max(distance, 1.0e-3)
+                    res += -0.1*displacement/max(distance, 0.1)**3
             return res
 
     def step(self, *args, **kwargs):
@@ -116,27 +117,30 @@ class LiquidApp(SFH_APP):
 
     # make sure that the subdomain is large enough to capture
     # partical-partical interactions
-    nsubs = (32, 32)
+    nsubs = (16, 16)
     def update_subdomains(self):
         self.subs = [[set() for _ in range(nsub)] for nsub in self.nsubs]
         for point in self.points:
             for i, subi in enumerate(self.subdomain_index(point)):
                 self.subs[i][subi].add(point)
+        self._neiborghs = dict()
+        for indexes in itertools.product(*map(range, self.nsubs)):
+            sets = []
+            for i, subi in enumerate(indexes):
+                sets.append(set.union(*(self.subs[i][(subi+k)%self.nsubs[i]]
+                        for k in (-1, 0, 1))))
+            self._neiborghs[indexes] = set.intersection(*sets)
 
     def subdomain_index(self, point):
         return (int(point.position[i]*self.nsubs[i]/domain[i])
                     for i in range(len(self.nsubs)))
 
     def neiborghs(self, point):
-        sets = []
-        for i, subi in enumerate(self.subdomain_index(point)):
-            sets.append(set.union(*(self.subs[i][(subi+k)%self.nsubs[i]]
-                    for k in (-1, 0, 1))))
-        return set.union(*sets)
+        return self._neiborghs[tuple(self.subdomain_index(point))]
 
 
 def main():
-    npoint = 256
+    npoint = 64
     xs = np.random.uniform(0.0, domain[0], npoint)
     ys = np.random.uniform(0.0, domain[1], npoint)
     positions = map(np.array, map(list, zip(xs, ys)))
