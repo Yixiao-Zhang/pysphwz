@@ -4,15 +4,20 @@ import tkinter as tk
 import time
 import itertools
 import logging
+import math
 
 import numpy as np
+import tinyarray as ta
 
-domain = np.array([16.0, 16.0])
+domain = ta.array([32.0, 18.0])
 mid_domain = domain/2
 pradius = 1.0
 
+def norm(array):
+    return math.sqrt(sum(array*array))
+
 class Point:
-    def __init__(self, position:np.ndarray, velocity:np.ndarray):
+    def __init__(self, position, velocity):
         self.position = position
         self.velocity = velocity
 
@@ -37,7 +42,7 @@ class SFH:
 
     def step(self, dt=None):
         if dt is None:
-            vmax = max(np.linalg.norm(point.velocity) for point in self.points)
+            vmax = max(norm(point.velocity) for point in self.points)
             dt = 0.4*pradius/max(vmax, 1.0)
 
         for point in self.points:
@@ -103,12 +108,12 @@ class LiquidApp(SFH_APP):
 
     class LiquidPoint(Point):
         def force(self, model):
-            res = np.array([0.0, 0.0])
+            res = ta.array([0.0, 0.0])
             for point in model.neiborghs(self):
                 displacement = self.displacement(point)
-                distance = np.linalg.norm(displacement)
+                distance = norm(displacement)
                 if distance < pradius:
-                    res += -0.1*displacement/max(distance, 0.1)**3
+                    res += +0.5*displacement/max(distance, 0.1)**3
             return res
 
     def step(self, *args, **kwargs):
@@ -117,7 +122,7 @@ class LiquidApp(SFH_APP):
 
     # make sure that the subdomain is large enough to capture
     # partical-partical interactions
-    nsubs = (16, 16)
+    nsubs = (32, 18)
     def update_subdomains(self):
         self.subs = [[set() for _ in range(nsub)] for nsub in self.nsubs]
         for point in self.points:
@@ -140,14 +145,14 @@ class LiquidApp(SFH_APP):
 
 
 def main():
-    npoint = 64
+    npoint = 576
     xs = np.random.uniform(0.0, domain[0], npoint)
     ys = np.random.uniform(0.0, domain[1], npoint)
-    positions = map(np.array, map(list, zip(xs, ys)))
+    positions = map(ta.array, map(list, zip(xs, ys)))
 
-    vxs = np.random.uniform(-1.0, 1.0, npoint)
-    vys = np.random.uniform(-1.0, 1.0, npoint)
-    velocities = map(np.array, map(list, zip(vxs, vys)))
+    vxs = np.random.uniform(1.0, 1.0, npoint)
+    vys = np.random.uniform(0.0, 0.0, npoint)
+    velocities = map(ta.array, map(list, zip(vxs, vys)))
 
     points = tuple(map(LiquidApp.LiquidPoint, positions, velocities))
 
