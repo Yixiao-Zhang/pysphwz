@@ -11,14 +11,14 @@ import functools
 import numpy as np
 import tinyarray as ta
 
-domain = ta.array([16.0, 9.0])
+domain = ta.array([16.0, 8.0])
 mid_domain = domain/2
-nx = 16
-ny = 9
+nx = 24
+ny = 12
 npoint = nx*ny
 density0 = npoint/math.exp(sum(map(math.log, domain)))
-stiffness = 1.0e2
-viscosity = 0.0
+stiffness = 1.0e3
+viscosity = 1.0e-1
 k = 7
 pradius = 1.0
 
@@ -27,7 +27,7 @@ ca = math.sqrt(stiffness*k/density0)
 print('sound speed', ca)
 
 def norm(vec):
-    return sum(vec*vec)
+    return math.sqrt(sum(vec*vec))
 
 def prod(iterable):
     return functools.reduce(operator.mul, iterable, 1)
@@ -100,11 +100,14 @@ class SFH:
 
     def step(self, dt=None):
         vmax = max(norm(point.velocity) for point in self.points)
+        rho_max = max(point.density for point in self.points)
+        rho_min = min(point.density for point in self.points)
         if dt is None:
             dt = 0.4*pradius/max(vmax, 1.0)
 
         print('CFL', vmax*dt/pradius)
         print('Mach number', vmax/ca)
+        print('Density {0:.3f} {1:.3f}'.format(rho_min, rho_max))
 
         for point in self.points:
             point.accelarate(dt, self)
@@ -192,7 +195,7 @@ class LiquidApp(SFH_APP):
 
     # make sure that the subdomain is large enough to capture
     # partical-partical interactions
-    nsubs = (16, 9)
+    nsubs = tuple(map(math.ceil, domain/pradius))
     def update_subdomains(self):
         self.subs = [[set() for _ in range(nsub)] for nsub in self.nsubs]
         for point in self.points:
@@ -224,14 +227,14 @@ class LiquidApp(SFH_APP):
                (getattr(point, vname)/point.density**2
                + getattr(neighbor, vname)/neighbor.density**2)
                 * grad_weight(neighbor.displacement(point))
-                for neighbor in self.neiborghs(point)
+                for neighbor in self.neiborghs(point) if neighbor != point
         )
 
     def laplace(self, vname, point):
-        return -2*sum(
-               getattr(point, vname)/neighbor.density
+        return 2*sum(
+               (getattr(neighbor, vname)- getattr(point, vname))/neighbor.density
                 * laplace(neighbor.displacement(point))
-                for neighbor in self.neiborghs(point)
+                for neighbor in self.neiborghs(point) if neighbor != point
         )
 
 
@@ -243,7 +246,7 @@ def main():
     positions = map(ta.array, map(list, zip(xs, ys)))
 
     vxs = 10.0*(2*(ys > mid_domain[1]) - 1)
-    vys = np.random.uniform(-1.0e-2, 1.0e-2, len(xs))
+    vys = np.random.uniform(-1.0e-3, 1.0e-3, len(xs))
     velocities = map(ta.array, map(list, zip(vxs, vys)))
 
     points = tuple(map(LiquidApp.LiquidPoint, positions, velocities))
