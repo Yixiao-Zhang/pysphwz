@@ -5,33 +5,74 @@ import time
 import itertools
 import logging
 import math
+import operator
+import functools
 
 import numpy as np
 import tinyarray as ta
 
 domain = ta.array([16.0, 9.0])
 mid_domain = domain/2
-pradius = 1.0
-npoint = 576
+nx = 16
+ny = 9
+npoint = nx*ny
 density0 = npoint/math.exp(sum(map(math.log, domain)))
-stiffness = 10.0
+stiffness = 1.0e2
+viscosity = 0.0
+k = 7
+pradius = 1.0
 
-def norm(array):
-    return math.sqrt(sum(array*array))
+ca = math.sqrt(stiffness*k/density0)
+
+print('sound speed', ca)
+
+def norm(vec):
+    return sum(vec*vec)
+
+def prod(iterable):
+    return functools.reduce(operator.mul, iterable, 1)
+
+def weight_1d(x):
+    q = x/pradius
+    if abs(q) > 1.0:
+        return 0.0
+    elif abs(q) > 1/3:
+        return (27/16/pradius)*(1 - abs(q))**2
+    else:
+        return (9/8 - 27/8*q**2)/pradius
+
+def grad_weight_1d(x):
+    q = x/pradius
+    if abs(q) > 1.0:
+        return 0.0
+    elif abs(q) > 1/3:
+        return math.copysign((27/8/pradius**2)*(1 - abs(q)), q)
+    else:
+        return 27/4*q/pradius**2
 
 def weight(displacement):
-    dist = norm(displacement)
-    return max((2/math.pi)*(1 - dist**2), 0.0)
+    return prod(map(weight_1d, displacement))
 
 def grad_weight(displacement):
-    dist = norm(displacement)
-    return (4/math.pi)*displacement if dist < 1.0 else 0.0
+    res = list()
+    for i in range(len(displacement)):
+        res.append(
+            grad_weight_1d(displacement[i])
+            * weight(
+                displacement[j] for j in range(len(displacement)) if j != i
+            )
+        )
+    return ta.array(res)
 
 def laplace(displacement):
-    return sum(displacement*grad_weight(displacement))/(norm(displacement)**2 + 1.0e-2)
+    return (
+                sum(displacement*grad_weight(displacement))
+                / (sum(displacement*displacement) + pradius**2*1.0e-2)
+            )
 
 def pressure(density):
-    return stiffness*((density/density0)**7 - 1)
+    return stiffness*((density/density0)**k - 1)
+    # return stiffness*(density/density0 - 1)
 
 class Point:
     def __init__(self, position, velocity):
@@ -63,6 +104,7 @@ class SFH:
             dt = 0.4*pradius/max(vmax, 1.0)
 
         print('CFL', vmax*dt/pradius)
+        print('Mach number', vmax/ca)
 
         for point in self.points:
             point.accelarate(dt, self)
@@ -104,7 +146,7 @@ class SFH_APP(SFH, tk.Canvas):
             ovals.append(oval)
         return tuple(ovals)
 
-    real_time_sep = 0.2
+    real_time_sep = 0.05
     def loop_func(self):
         time_next = time.time()
         while True:
@@ -135,8 +177,8 @@ class LiquidApp(SFH_APP):
         def force(self, model):
             res = ta.array([0.0, 0.0])
             res += -model.gradient('pressure', self)
-            res += 0.2*model.laplace('velocity', self)
-            res += (self.position - domain/2)*ta.array([0.0, -1.0])
+            if viscosity:
+                res += viscosity*model.laplace('velocity', self)
             return res
 
         @property
@@ -166,12 +208,12 @@ class LiquidApp(SFH_APP):
 
     def update_density(self):
         for point in self.points:
-            point.density = sum(weight(point.position - neighbor.position)
+            point.density = sum(weight(neighbor.displacement(point))
                 for neighbor in self.neiborghs(point))
             point.pressure = pressure(point.density)
 
     def subdomain_index(self, point):
-        return (int(point.position[i]*self.nsubs[i]/domain[i])
+        return (int(point.position[i]*self.nsubs[i]/domain[i])%self.nsubs[i]
                     for i in range(len(self.nsubs)))
 
     def neiborghs(self, point):
@@ -181,25 +223,27 @@ class LiquidApp(SFH_APP):
         return sum(
                (getattr(point, vname)/point.density**2
                + getattr(neighbor, vname)/neighbor.density**2)
-                * grad_weight(neighbor.position - point.position)
+                * grad_weight(neighbor.displacement(point))
                 for neighbor in self.neiborghs(point)
         )
 
     def laplace(self, vname, point):
         return -2*sum(
                getattr(point, vname)/neighbor.density
-                * laplace(neighbor.position - point.position)
+                * laplace(neighbor.displacement(point))
                 for neighbor in self.neiborghs(point)
         )
 
 
 def main():
-    xs = np.random.uniform(0.0, domain[0], npoint)
-    ys = np.random.uniform(0.0, domain[1], npoint)
+    xs = np.linspace(0.0, domain[0], nx, endpoint=False)
+    ys = np.linspace(0.0, domain[1], ny, endpoint=False)
+    xs, ys = map(lambda a: np.reshape(a, (-1, )),np.meshgrid(xs, ys))
+    # xs, ys = map(lambda a: a[:len(a)//2], (xs, ys))
     positions = map(ta.array, map(list, zip(xs, ys)))
 
-    vxs = np.random.uniform(-1.0, 1.0, npoint)
-    vys = np.random.uniform(-1.0, 1.0, npoint)
+    vxs = 10.0*(2*(ys > mid_domain[1]) - 1)
+    vys = np.random.uniform(-1.0e-2, 1.0e-2, len(xs))
     velocities = map(ta.array, map(list, zip(vxs, vys)))
 
     points = tuple(map(LiquidApp.LiquidPoint, positions, velocities))
