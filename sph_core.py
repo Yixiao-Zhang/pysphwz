@@ -10,7 +10,7 @@ import sys
 
 import tinyarray as ta
 
-domain = ta.array([32.0, 16.0])
+domain = ta.array([64.0, 32.0])
 mid_domain = domain/2
 pradius = 1.0
 
@@ -151,7 +151,7 @@ class SPH(NS):
 
 
 class SPH_APP(SPH, tk.Canvas):
-    scale = 25.0
+    scale = 10.0
     radius = 4.0
     def __init__(self, points, dt, nsnapshot=None):
         SPH.__init__(self, points)

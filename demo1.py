@@ -9,8 +9,8 @@ from sph_core import SPH_APP, Point, domain, mid_domain
 
 dx = 0.8
 density0 = dx**(-len(domain))
-stiffness = 1.0e2
-viscosity = 0.0
+stiffness = 1.0e3
+viscosity = 0.1
 nudge = 0.0
 k = 7
 
@@ -51,9 +51,9 @@ def main():
 
     xs = np.arange(0.0, domain[0], dx)
     ys = np.arange(0.0, domain[1], dx)
-    vmax = 8.0
+    vmax = 40.0
     # vxs = vmax*(2*(ys > mid_domain[1]) - 1)
-    vxs = vmax*(ys > 0.25*domain[1])*(ys < 0.75*domain[1])
+    vxs = vmax*(ys > 0.40*domain[1])*(ys < 0.60*domain[1])
     vys = np.random.uniform(-vmax*1e-3, vmax*1e-3, len(xs))
 
     xs, ys = map(lambda a: np.reshape(a, (-1, )), np.meshgrid(xs, ys))

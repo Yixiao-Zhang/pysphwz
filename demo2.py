@@ -10,9 +10,10 @@ from sph_core import SPH_APP, Point, domain, mid_domain, norm
 dx = 1.0
 density0 = dx**(-len(domain))
 stiffness = 1.0e2
-viscosity = 1.0
+viscosity = 1.0e0
 nudge = 0.0
 k = 7
+gravitiy = 1.0e2
 
 ca = math.sqrt(stiffness*k/density0)
 
@@ -32,7 +33,7 @@ class LiquidPoint(Point):
             res -= self.velocity*1.0
             res = res*ta.array([0.0, 10.0])
 
-        res += ta.array([0.0, 1.0e2])
+        res += ta.array([0.0, gravitiy])
 
         return res
 
@@ -76,15 +77,15 @@ def create_wall(*positions):
 def main():
 
     walls = tuple(create_wall(
-            (31.5, 0.5),
-            (31.5, 15.5),
-            (0.5, 15.5),
+            (63.5, 0.5),
+            (63.5, 31.5),
+            (0.5, 31.5),
             (0.5, 0.5),
         ))
     wallxmin = min(wall.position[0] for wall in walls)
     wallymax = max(wall.position[1] for wall in walls)
 
-    xs = np.arange(wallxmin + dx, 8.0, dx)
+    xs = np.arange(wallxmin + dx, 16.0, dx)
     ys = np.arange(2.0, wallymax - dx, dx)
 
     vmax = 8.0
@@ -101,7 +102,7 @@ def main():
 
     points = points + walls
 
-    model = SPH_APP(points, dt=0.005, nsnapshot=10)
+    model = SPH_APP(points, dt=0.002, nsnapshot=10)
     model.run()
 
 
